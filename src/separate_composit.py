@@ -9,10 +9,10 @@ import math
 def separate_label(img_in: np.ndarray, scale: int):
     _wid, _hei = img_in.shape
 
-    img_out = np.zeros(((scale ** 2), _wid // 2, _hei // 2), dtype=np.double)
+    img_out = np.zeros((_wid // 2, _hei // 2, scale ** 2), dtype=np.double)
 
     for cnt, (_y, _x) in enumerate(product(range(scale), range(scale))):
-        img_out[cnt, :, :] = img_in[_y:_wid:scale, _x:_hei:scale]
+        img_out[:, :, cnt] = img_in[_y:_wid:scale, _x:_hei:scale]
     return img_out
 
 

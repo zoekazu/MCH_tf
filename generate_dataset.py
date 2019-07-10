@@ -5,6 +5,7 @@ from __future__ import print_function
 import numpy as np
 import cv2
 import h5py
+from itertools import product
 
 from src.utils import confirm_make_folder
 from src.read_dir_imags import ImgInDirAsY
@@ -19,6 +20,7 @@ INPUT_SIZE = (30)
 LABEL_SIZE = (22)
 SCALE = (2)
 SHAVE_SIZE = abs(INPUT_SIZE - LABEL_SIZE) // 2
+AROUND_SHAVE = 2
 
 
 def prepare_dataset(_path):
@@ -32,33 +34,41 @@ def prepare_dataset(_path):
         hr_img = modcrop(hr_img, SCALE)
         _wid, _hei = hr_img.shape
 
-        for y in range(0, _hei - INPUT_SIZE*SCALE, STRIDE_SIZE):
-            for x in range(0, _wid - INPUT_SIZE*SCALE, STRIDE_SIZE):
-                hr_patch = hr_img[x: x + INPUT_SIZE *
-                                  SCALE, y: y + INPUT_SIZE*SCALE]
-                lr_patch = cv2.resize(
-                    hr_patch, dsize=None, fx=1/SCALE, fy=1/SCALE, interpolation=cv2.INTER_CUBIC)
+        for y, x in product(range((0, _hei - INPUT_SIZE * SCALE, STRIDE_SIZE)),
+                            range(0, _wid - INPUT_SIZE*SCALE, STRIDE_SIZE)):
 
-                lr_patch = lr_patch.astype(float) / 255.
-                hr_patch = hr_patch.astype(float) / 255.
+            hr_patch = hr_img[x: x + INPUT_SIZE *
+                              SCALE, y: y + INPUT_SIZE*SCALE]
+            lr_patch = cv2.resize(
+                hr_patch, dsize=None, fx=1/SCALE, fy=1/SCALE, interpolation=cv2.INTER_CUBIC)
 
-                hr_patch = hr_patch
-                hr_patch_separete = separate_label(hr_patch, SCALE)[:, SHAVE_SIZE-1: -(SHAVE_SIZE+1),
-                                                                    SHAVE_SIZE-1: -(SHAVE_SIZE+1)]
+            lr_patch = [AROUND_SHAVE - 1, -(AROUND_SHAVE + 1),
+                        AROUND_SHAVE - 1, -(AROUND_SHAVE + 1)]
+            hr_patch = [AROUND_SHAVE*2 - 1, -(AROUND_SHAVE*2 + 1),
+                        AROUND_SHAVE*2 - 1, -(AROUND_SHAVE*2 + 1)]
 
-                lr = np.zeros(
-                    (1, INPUT_SIZE, INPUT_SIZE), dtype=np.double)
-                hr = np.zeros(
-                    (SCALE ** 2, LABEL_SIZE, LABEL_SIZE), dtype=np.double)
+            lr_patch = lr_patch.astype(float) / 255.
+            hr_patch = hr_patch.astype(float) / 255.
 
-                lr[0, :, :] = lr_patch
-                hr[:, :, :] = hr_patch_separete
+            hr_patch = hr_patch
+            hr_patch_separete = separate_label(hr_patch, SCALE)[SHAVE_SIZE-1: -(SHAVE_SIZE+1),
+                                                                SHAVE_SIZE-1: -(SHAVE_SIZE+1), :]
 
-                data.append(lr)
-                label.append(hr)
+            lr = np.zeros(
+                (INPUT_SIZE, INPUT_SIZE, 1), dtype=np.double)
+            hr = np.zeros(
+                (LABEL_SIZE, LABEL_SIZE, SCALE ** 2), dtype=np.double)
+
+            lr[:, :, 0] = lr_patch
+            hr[:, :, :] = hr_patch_separete
+
+            data.append(lr)
+            label.append(hr)
 
     data = np.array(data, dtype=float)
     label = np.array(label, dtype=float)
+    np.random.shuffle(data)
+    np.random.shuffle(label)
     return data, label
 
 
@@ -94,9 +104,7 @@ def read_training_data(file):
     with h5py.File(file, 'r') as hf:
         data = np.array(hf.get('data'))
         label = np.array(hf.get('label'))
-        train_data = np.transpose(data, (0, 2, 3, 1))
-        train_label = np.transpose(label, (0, 2, 3, 1))
-        return train_data, train_label
+        return data, label
 
 
 def modcrop(img, scale):
