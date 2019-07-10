@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- Coding: utf-8 -*-
 
-from __future__ import print_function
 import numpy as np
 import cv2
 import h5py
@@ -12,19 +11,20 @@ from src.read_dir_imags import ImgInDirAsY
 from src.separate_composit import separate_label
 
 TRAIN_PATH = "./dataset/Train/"
-TEST_PATH = "./dataset/Test/Set14/"
+TEST_PATH = "./dataset/Test/BSD100/"
 
 PATCH_SIZE = (32)
-STRIDE_SIZE = (16)
-INPUT_SIZE = (30)
-LABEL_SIZE = (22)
+STRIDE_SIZE = (8)
+AROUND_SHAVE = (2)
+INPUT_SIZE = 30
+LABEL_SIZE = 22
 SCALE = (2)
 SHAVE_SIZE = abs(INPUT_SIZE - LABEL_SIZE) // 2
-AROUND_SHAVE = 2
 
 
 def prepare_dataset(_path):
     img_files = ImgInDirAsY(_path)
+    print('The amount of images is', img_files.files_len())
 
     data = []
     label = []
@@ -34,30 +34,26 @@ def prepare_dataset(_path):
         hr_img = modcrop(hr_img, SCALE)
         _wid, _hei = hr_img.shape
 
-        for y, x in product(range((0, _hei - INPUT_SIZE * SCALE, STRIDE_SIZE)),
+        for y, x in product(range(0, _hei - INPUT_SIZE*SCALE, STRIDE_SIZE),
                             range(0, _wid - INPUT_SIZE*SCALE, STRIDE_SIZE)):
 
-            hr_patch = hr_img[x: x + INPUT_SIZE *
-                              SCALE, y: y + INPUT_SIZE*SCALE]
+            hr_patch = hr_img[x: x+INPUT_SIZE*SCALE, y: y+INPUT_SIZE*SCALE]
             lr_patch = cv2.resize(
                 hr_patch, dsize=None, fx=1/SCALE, fy=1/SCALE, interpolation=cv2.INTER_CUBIC)
-
-            lr_patch = [AROUND_SHAVE - 1, -(AROUND_SHAVE + 1),
-                        AROUND_SHAVE - 1, -(AROUND_SHAVE + 1)]
-            hr_patch = [AROUND_SHAVE*2 - 1, -(AROUND_SHAVE*2 + 1),
-                        AROUND_SHAVE*2 - 1, -(AROUND_SHAVE*2 + 1)]
 
             lr_patch = lr_patch.astype(float) / 255.
             hr_patch = hr_patch.astype(float) / 255.
 
-            hr_patch = hr_patch
-            hr_patch_separete = separate_label(hr_patch, SCALE)[SHAVE_SIZE-1: -(SHAVE_SIZE+1),
-                                                                SHAVE_SIZE-1: -(SHAVE_SIZE+1), :]
+            lr_patch = lr_patch[AROUND_SHAVE: -AROUND_SHAVE,
+                                AROUND_SHAVE: -AROUND_SHAVE]
+
+            hr_patch_separete = separate_label(hr_patch, SCALE)[SHAVE_SIZE+AROUND_SHAVE-1: -(SHAVE_SIZE+AROUND_SHAVE+1),
+                                                                SHAVE_SIZE+AROUND_SHAVE-1: -(SHAVE_SIZE+AROUND_SHAVE+1), :]
 
             lr = np.zeros(
-                (INPUT_SIZE, INPUT_SIZE, 1), dtype=np.double)
+                (INPUT_SIZE-AROUND_SHAVE*2, INPUT_SIZE-AROUND_SHAVE*2, 1), dtype=np.double)
             hr = np.zeros(
-                (LABEL_SIZE, LABEL_SIZE, SCALE ** 2), dtype=np.double)
+                (LABEL_SIZE-AROUND_SHAVE*2, LABEL_SIZE-AROUND_SHAVE*2, SCALE ** 2), dtype=np.double)
 
             lr[:, :, 0] = lr_patch
             hr[:, :, :] = hr_patch_separete
@@ -88,16 +84,22 @@ def write_hdf5(data, labels, output_filename):
     scan_hdf5(output_filename)
 
 
-def scan_hdf5(path, recursive=True, tab_step=2):
-    def scan_node(g, tabs=0):
-        print(' ' * tabs, g.name)
-        for k, v in g.items():
-            if isinstance(v, h5py.Dataset):
-                print(' ' * tabs + ' ' * tab_step + ' -', v.name)
-            elif isinstance(v, h5py.Group) and recursive:
-                scan_node(v, tabs=tabs + tab_step)
-    with h5py.File(path, 'r') as f:
-        scan_node(f)
+# def scan_hdf5(path, recursive=True, tab_step=2):
+#     def scan_node(g, tabs=0):
+#         print(' ' * tabs, g.name)
+#         for k, v in g.items():
+#             if isinstance(v, h5py.Dataset):
+#                 print(' ' * tabs + ' ' * tab_step + ' -', v.name)
+#             elif isinstance(v, h5py.Group) and recursive:
+#                 scan_node(v, tabs=tabs + tab_step)
+#     with h5py.File(path, 'r') as f:
+#         scan_node(f)
+
+def scan_hdf5(_path):
+    with h5py.File(_path, 'r') as f:
+        h5_keys = f.keys()
+        for h5_key in h5_keys:
+            print('shape of', h5_key, 'is', f[h5_key].shape)
 
 
 def read_training_data(file):

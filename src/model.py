@@ -1,40 +1,39 @@
 #!/usr/bin/python
 # -*- Coding: utf-8 -*-
 
-from keras.layers import Input, Conv2D, Lambda
+from keras.layers import Input, Conv2D, BatchNormalization
 from keras.models import Model
-from keras.optimizers import TFOptimizer
+from keras.optimizers import Adam
 from keras.utils import normalize
 import tensorflow as tf
 
+from src.lr_multiplier import LearningRateMultiplier
+
 
 def train_model():
-    inputs = Input(shape=(30, 30, 1))
-    inputs_normalization = Lambda(lambda x: normalize(x, axis=3, order=2))
-    f1 = Conv2D(filter=64, kernel_size=(5, 5), stride=(1, 1), padding='valid',
+    inputs = Input(shape=(26, 26, 1))
+    inputs_normalization = BatchNormalization(
+        name='input_normalization')(inputs)  # input normalization
+    f1 = Conv2D(filters=64, kernel_size=(5, 5), strides=(1, 1), padding='valid',
                 data_format='channels_last', activation='relu', use_bias=True,
                 kernel_initializer='glorot_uniform', bias_initializer='Constant',
                 name='conv1')(inputs_normalization)
-    f2 = Conv2D(filter=32, kernel_size=(3, 3), stride=(1, 1), padding='valid',
+    f2 = Conv2D(filters=32, kernel_size=(3, 3), strides=(1, 1), padding='valid',
                 data_format='channels_last', activation='relu', use_bias=True,
                 kernel_initializer='glorot_uniform', bias_initializer='Constant',
                 name='conv2')(f1)
-    outputs = Conv2D(filter=4, kernel_size=(3, 3), stride=(1, 1), padding='valid',
-                     data_format='channels_last', activation='liner', use_bias=True,
+    outputs = Conv2D(filters=4, kernel_size=(3, 3), strides=(1, 1), padding='valid',
+                     data_format='channels_last', activation='linear', use_bias=True,
                      kernel_initializer='glorot_uniform', bias_initializer='Constant',
                      name='conv3')(f2)
     model = Model(inputs=inputs, outputs=outputs)
 
-    lr_normal_layer = ['conv1', 'conv2']
-    lr_small_layer = ['conv3']
-    optimizer_normal = tf.train.AdamOptimizer(
-        learning_rate=0.0001).minimize(var_list=lr_normal_layer)
-    optimizer_small = tf.train.AdamOptimizer(
-        learning_rate=0.00001).minimize(var_list=lr_small_layer)
-    optimizer_all = TFOptimizer(tf.group(optimizer_normal, optimizer_small))
+    multipliers = {'conv1': 1, 'conv2': 1, 'conv3': 0.1}
+    opt = LearningRateMultiplier(
+        Adam, lr_multipliers=multipliers, lr=0.0001, decay=0.0001)
 
-    model.compile(optimizer=optimizer_all, loss='mean_squared_error',
-                  metrics=['mean_squared_error'], )
+    model.compile(optimizer=opt, loss='mean_squared_error',
+                  metrics=['mean_squared_error'])
 
     return model
 
