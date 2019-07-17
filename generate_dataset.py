@@ -32,9 +32,10 @@ def prepare_dataset(_path):
     for hr_img in img_files.read_files():
 
         hr_img = modcrop(hr_img, SCALE)
+        _wid, _hei = hr_img.shape
 
-        for y, x in product(range(0, hr_img.rows - INPUT_SIZE*SCALE, STRIDE_SIZE),
-                            range(0, hr_img.cols - INPUT_SIZE*SCALE, STRIDE_SIZE)):
+        for y, x in product(range(0, _hei - INPUT_SIZE*SCALE, STRIDE_SIZE),
+                            range(0, _wid - INPUT_SIZE*SCALE, STRIDE_SIZE)):
 
             hr_patch = hr_img[x: x+INPUT_SIZE*SCALE, y: y+INPUT_SIZE*SCALE]
             lr_patch = cv2.resize(
